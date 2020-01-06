@@ -1,6 +1,6 @@
 ---
-title: SMPE
-author: Quentin Guilloteau
+title: "SMPE"
+author: "Quentin Guilloteau"
 ---
 
 ```{r setup, include=FALSE}
@@ -16,17 +16,24 @@ knitr::opts_chunk$set(echo = TRUE)
 # Downloading the data
 
 ```{r}
+# Downloading the data
+csv_url <- "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ_co2/weekly/weekly_in_situ_co2_mlo.csv"
+df <- read.csv(csv_url, sep = ",", comment.char = "\"", blank.lines.skip=TRUE, strip.white=TRUE, skip=44, header=FALSE)
 
-df <- read.csv("https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ_co2/weekly/weekly_in_situ_co2_mlo.csv", sep = ",", comment.char = "\"", blank.lines.skip=TRUE, strip.white=TRUE, skip=44, header=FALSE)
+# Naming the columns
 colnames(df) <- c("date", "CO2")
+
+# A quick look at the data
 head(df)
 sapply(df, typeof)
 
+# Checking if there are NAs in the data
 na_lines <- apply(df, 1, function(x) any(is.na(x)))
 df[na_lines,]
-sapply(df, class)
 ```
 # Managing the dates
+
+As the ``date`` column is considered as ``integer``, we will convert it into a date.
 
 ```{r}
 df$date <- as.Date(df$date)
@@ -35,12 +42,71 @@ sapply(df, class)
 
 # Plotting some stuff
 
-
-Global plot
+We can now plot the CO2 evolution in ppm from 1958:
 ```{r}
 ggplot(data = df, aes(x = date, y = CO2)) +
-    geom_point() +
+    geom_point(size = 0.1) +
     geom_smooth()
+```
+We can see that there seems to be a periodical oscillation but also a global trend that is increasing.
+
+# Regression for global trend
+
+## Setting up the Data
+
+Instead of using pure dates, we will convert each date into the number of days since the first measurement of the data set
+```{r}
+date_first_measure <- df$date[1]
+df$day <- as.integer(df$date - date_first_measure)
+```
+
+## Linear Regression
+
+We can try to fit a line for the CO2 concentration:
+
+```{r}
+# Linear Regression
+reg_line <- lm(data = df, CO2 ~ day)
+summary(reg_line)
+```
+TODO: Add some analysis
+
+```{r}
+df$prediction_line <- predict(reg_line, df)
+ggplot(data = df, aes(x = date, y = CO2)) +
+    geom_point(size = 0.5) +
+    geom_line(aes(x = date, y = prediction_line), colour = "blue")
+```
+## Quadratic Regression
+
+```{r}
+reg_quad <- lm(data = df, CO2 ~ poly(day, 2))
+summary(reg_quad)
+```
+
+```{r}
+df$prediction_quad <- predict(reg_quad, df)
+ggplot(data = df, aes(x = date, y = CO2)) +
+    geom_point(size = 0.5) +
+    geom_line(aes(x = date, y = prediction_quad),colour = "blue")
+```
+
+An estimation in 2025:
+
+```{r}
+date_2025 <- as.Date("2025-01-01")
+day_2025 <- as.integer(date_2025 - date_first_measure)
+
+date_today <- Sys.Date()
+day_today <- as.integer(date_today - date_first_measure)
+
+data_prediction <- data.frame(day = seq(day_today, day_2025, 7))
+data_prediction$date <- as.Date(date_first_measure + data_prediction$day)
+data_prediction$CO2 <- predict(reg_quad, data_prediction)
+
+ggplot() +
+    geom_point(data = df, aes(x = date, y = CO2), size = 0.1) +
+    geom_line(data = data_prediction, aes(x = date, y = CO2), color = "red")
 ```
 
 ```{r}
@@ -65,10 +131,17 @@ yearly_data_derivation <- function(data, year) {
     new_df
 }
 
+df$year <- as.integer(format(df$date, "%Y"))
+df$day_of_year <- as.integer(df$date - as.Date(paste(df$year, "01", "01", sep = "-")))
+for (y in df$year) {
+  print(df[df$year == y,])
+  df$CO2_year <- df$CO2 - df[df$year == y,]$CO2[1]
+}
+
 ggplot() +
-    geom_line(data = yearly_data_derivation(df, 1960),aes(x = day, y = CO2), color = "green") +
-    geom_line(data = yearly_data_derivation(df, 1997),aes(x = day, y = CO2), color = "blue") +
-    geom_line(data = yearly_data_derivation(df, 2019),aes(x = day, y = CO2), color = "red")
+    geom_line(data = df[df$year == 1960,],aes(x = day_of_year, y = CO2_year), color = "green") +
+    geom_line(data = df[df$year == 1997,],aes(x = day_of_year, y = CO2_year), color = "blue") +
+    geom_line(data = df[df$year == 2019,],aes(x = day_of_year, y = CO2_year), color = "red")
 ```
 
 # Regression for a yearly trend
@@ -100,12 +173,19 @@ ggplot(data = data1997) +
     geom_line(aes(x = day, y = prediction))
 
 ```
+
 ## Trying with a sin
 
 ```{r}
-class(derivative_data$day)
-reg_poly <- lm(data = derivative_data, CO2 ~ sin(2*pi/366*(day %% 366)) + cos(2*pi/366*(day %% 366)) + poly(year, 2))
+reg_poly <- lm(data = derivative_data, CO2 ~ sin(2*pi/366*(day %% 366)) + cos(2*pi/366*(day %% 366)) + poly(day, 2))
 summary(reg_poly)
+
+data2019 <- yearly_data_derivation(df, 2019)
+data2019$prediction <- predict(reg_poly, data2019)
+
+ggplot(data = data2019) +
+    geom_point(aes(x = day, y = CO2)) +
+    geom_line(aes(x = day, y = prediction))
 
 data1997 <- yearly_data_derivation(df, 1997)
 data1997$prediction <- predict(reg_poly, data1997)
@@ -114,60 +194,4 @@ ggplot(data = data1997) +
     geom_point(aes(x = day, y = CO2)) +
     geom_line(aes(x = day, y = prediction))
 
-```
-
-# Regression for global trend
-
-## Setting up the Data
-
-```{r}
-data_reg <- df
-data_reg$day <- as.integer(data_reg$date - data_reg$date[1])
-data_reg$day2 <- data_reg$day^2
-reg_line <- lm(data = data_reg, CO2 ~ day)
-```
-
-## Linear Regerssion
-
-```{r}
-reg_line <- lm(data = data_reg, CO2 ~ day)
-summary(reg_line)
-ggplot(data = data_reg, aes(x = date, y = CO2)) +
-    geom_point(size = 0.5) +
-    geom_line(aes(x = date, y = day * reg_line$coefficients[2] +
-                                reg_line$coefficients[1]), colour = "blue")
-```
-
-```{r}
-reg_quad <- lm(data = data_reg, CO2 ~ day+day2)
-summary(reg_quad)
-ggplot(data = data_reg, aes(x = date, y = CO2)) +
-    geom_point(size = 0.5) +
-    geom_line(aes(x = date, y = day2 * reg_quad$coefficients[3] +
-                                day * reg_quad$coefficients[2] +
-                                reg_quad$coefficients[1]),colour = "blue")
-```
-
-An estimation in 2025:
-
-```{r}
-date_2025 <- as.Date("2025-01-01")
-day_2025 <- as.integer(date_2025 - data_reg$date[1])
-
-date_today <- Sys.Date()
-day_today <- as.integer(date_today - data_reg$date[1])
-
-data_prediction <- data.frame(day = seq(day_today, day_2025, 7))
-data_prediction$date <- as.Date(data_reg$date[1] + data_prediction$day)
-data_prediction$day2 <- data_prediction$day^2
-data_prediction$CO2 <- predict(reg_quad, data_prediction)
-
-CO2_2025 <- day_2025 * day_2025 * reg_quad$coefficients[3] +
-            day_2025 * reg_quad$coefficients[2] +
-            reg_quad$coefficients[1]
-CO2_2025
-
-ggplot() +
-    geom_point(data = data_reg, aes(x = date, y = CO2), size = 0.5) +
-    geom_line(data = data_prediction, aes(x = date, y = CO2), color = "red")
 ```
