@@ -59,7 +59,7 @@ ggplot() +
 ```{r}
 yearly_data_derivation <- function(data, year) {
     new_df <- df[as.integer(format(df$date, "%Y")) == year,]
-    new_df$day <- new_df$date - as.Date(paste(year,"01","01", sep = "-"))
+    new_df$day <- as.integer(new_df$date - as.Date(paste(year,"01","01", sep = "-")))
     new_df$CO2 <- new_df$CO2 - new_df$CO2[1]
     new_df$year <- year
     new_df
@@ -74,20 +74,46 @@ ggplot() +
 # Regression for a yearly trend
 
 ```{r}
-yearly_data_reg <- yearly_data_derivation(df, 2019)
-degree <- 9
+degree <- 5
 derivative_data <- yearly_data_derivation(df, 1960)
-for (y in 1960:2019) {
+for (y in 1961:2019) {
     derivative_data <- rbind(derivative_data, yearly_data_derivation(df, y))
 }
-head(derivative_data)
-reg_poly <- lm(data = derivative_data, CO2 ~ poly(day + year, degree))
+reg_poly <- lm(data = derivative_data, CO2 ~ poly(day, degree) + poly(year, 2))
 summary(reg_poly)
-yearly_data_reg$prediction <- predict(reg_poly, yearly_data_reg)
 
-ggplot(data = yearly_data_reg) +
+```
+
+```{r}
+data2019 <- yearly_data_derivation(df, 2019)
+data2019$prediction <- predict(reg_poly, data2019)
+
+ggplot(data = data2019) +
     geom_point(aes(x = day, y = CO2)) +
     geom_line(aes(x = day, y = prediction))
+
+data1997 <- yearly_data_derivation(df, 1997)
+data1997$prediction <- predict(reg_poly, data1997)
+
+ggplot(data = data1997) +
+    geom_point(aes(x = day, y = CO2)) +
+    geom_line(aes(x = day, y = prediction))
+
+```
+## Trying with a sin
+
+```{r}
+class(derivative_data$day)
+reg_poly <- lm(data = derivative_data, CO2 ~ sin(2*pi/366*(day %% 366)) + cos(2*pi/366*(day %% 366)) + poly(year, 2))
+summary(reg_poly)
+
+data1997 <- yearly_data_derivation(df, 1997)
+data1997$prediction <- predict(reg_poly, data1997)
+
+ggplot(data = data1997) +
+    geom_point(aes(x = day, y = CO2)) +
+    geom_line(aes(x = day, y = prediction))
+
 ```
 
 # Regression for global trend
