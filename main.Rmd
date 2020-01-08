@@ -80,8 +80,11 @@ We can plot the estimation of this model:
 df$prediction_line <- predict(reg_line, df)
 # Plot the data and the predictions
 ggplot(data = df, aes(x = date, y = CO2)) +
-    geom_point(size = 0.5) +
-    geom_line(aes(x = date, y = prediction_line), colour = "blue")
+    theme_linedraw() +
+    geom_point(size = 0.1) +
+    geom_line(aes(x = date, y = prediction_line), colour = "blue") +
+    xlab("Date") + ylab("CO2 (in ppm)") +
+    ggtitle("CO2 Variations and its Linear Estimation")
 ```
 
 We can see that even if the $R^2$ value in the summary was close to 1, a line does not seems to be a good fit for this data.
@@ -89,7 +92,7 @@ We can see that even if the $R^2$ value in the summary was close to 1, a line do
 Indeed:
 
 * it is underestimating from year 1958 to 1970
- 
+
 * it is overestimating from yaer 1970 to 2005
 
 * it is underestimating from year 2005 to the present days
@@ -112,8 +115,12 @@ We can now plot the data and the predictions:
 ```{r}
 df$prediction_quad <- predict(reg_quad, df)
 ggplot(data = df, aes(x = date, y = CO2)) +
-    geom_point(size = 0.5) +
-    geom_line(aes(x = date, y = prediction_quad),colour = "blue")
+    theme_linedraw() +
+    geom_point(size = 0.1) +
+    geom_line(aes(x = date, y = prediction_quad), colour = "blue") +
+    # scale_y_continuous(limits = c(0, 450)) +
+    xlab("Date") + ylab("CO2 (in ppm)") +
+    ggtitle("CO2 Variations and its Quadratic Estimation")
 ```
 
 The quadratic model fits way more the data.
@@ -138,8 +145,12 @@ data_prediction$date <- as.Date(date_first_measure + data_prediction$day)
 data_prediction$CO2 <- predict(reg_quad, data_prediction)
 
 ggplot() +
+    theme_linedraw() +
     geom_point(data = df, aes(x = date, y = CO2), size = 0.1) +
-    geom_line(data = data_prediction, aes(x = date, y = CO2), color = "red")
+    geom_line(data = data_prediction, aes(x = date, y = CO2), color = "red") + 
+    scale_y_continuous(limits = c(0, 450)) +
+    xlab("Date") + ylab("CO2 (in ppm)") +
+    ggtitle("CO2 Variations to the Present Day and its Estimation until 2025")
 ```
 
 We can say that if the CO2 concentration in the air continues to follow this quadratic grow, the concentration of CO2 in the air in 2025 will be around 425 ppm.
@@ -168,10 +179,13 @@ for (y in df$year) {
 
 We can plot the yearly evolution of some years:
 ```{r}
-ggplot() +
-    geom_line(data = df[df$year == 1960,],aes(x = day_of_year, y = CO2_year), color = "green") +
-    geom_line(data = df[df$year == 1997,],aes(x = day_of_year, y = CO2_year), color = "blue") +
-    geom_line(data = df[df$year == 2019,],aes(x = day_of_year, y = CO2_year), color = "red")
+ggplot(data = subset(df, year == 1960 | year == 1997 | year == 2019), 
+       aes(x = day_of_year, y = CO2_year, color = factor(year))) +
+    theme_linedraw() +
+    geom_line() +
+    scale_y_continuous(limits = c(-5, 5)) +
+    xlab("Day of the Year") + ylab("CO2 Variation (in ppm)") +
+    ggtitle("CO2 Variations for the Years 1960, 1997 and 2019")
 ```
 
 # Regression for a yearly trend
@@ -180,23 +194,18 @@ ggplot() +
 degree <- 5
 reg_poly <- lm(data = df, CO2_year ~ poly(day_of_year, degree) + poly(year, 2))
 summary(reg_poly)
-
 ```
 
 ```{r}
 df$prediction_poly <- predict(reg_poly, df)
 
 ggplot(data = df[df$year == 2019,]) +
+    theme_linedraw() +
     geom_point(aes(x = day_of_year, y = CO2_year)) +
-    geom_line(aes(x = day_of_year, y = prediction_poly))
-
-# data1997 <- yearly_data_derivation(df, 1997)
-# data1997$prediction <- predict(reg_poly, data1997)
-# 
-# ggplot(data = data1997) +
-#     geom_point(aes(x = day, y = CO2)) +
-#     geom_line(aes(x = day, y = prediction))
-# 
+    geom_line(aes(x = day_of_year, y = prediction_poly)) +
+    scale_y_continuous(limits = c(-5, 5)) +
+    xlab("Days of the Year") + ylab("CO2 Variation (in ppm)") +
+    ggtitle("CO2 Variations and its Polynimial Prediction for the Year 1997 (in ppm)")
 ```
 
 ## Trying with a sin
@@ -216,7 +225,10 @@ summary(reg_sin)
 df$prediction_sin <- predict(reg_sin, df)
 
 ggplot(data = df[df$year == 1997,]) +
+    theme_linedraw() +
     geom_point(aes(x = day_of_year, y = CO2_year)) +
-    geom_line(aes(x = day_of_year, y = prediction_sin))
-
+    geom_line(aes(x = day_of_year, y = prediction_sin)) +
+    scale_y_continuous(limits = c(-5, 5)) +
+    xlab("Days of the Year") + ylab("CO2 Variation (in ppm)") +
+    ggtitle("CO2 Variations and its Sin Prediction for the Year 1997 (in ppm)")
 ```
