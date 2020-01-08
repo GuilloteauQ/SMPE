@@ -1,6 +1,9 @@
 ---
 title: "SMPE"
 author: "Quentin Guilloteau"
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -45,10 +48,10 @@ sapply(df, class)
 We can now plot the CO2 evolution in ppm from 1958:
 ```{r}
 ggplot(data = df, aes(x = date, y = CO2)) +
-    geom_point(size = 0.1) +
-    geom_smooth()
+    geom_point(size = 0.1)
 ```
-We can see that there seems to be a periodical oscillation but also a global trend that is increasing.
+
+We can see that there seems to be a periodical oscillation but also the global trend is increasing.
 
 # Regression for global trend
 
@@ -69,20 +72,42 @@ We can try to fit a line for the CO2 concentration:
 reg_line <- lm(data = df, CO2 ~ day)
 summary(reg_line)
 ```
-TODO: Add some analysis
+
+We can plot the estimation of this model:
 
 ```{r}
+# Compute the predictions
 df$prediction_line <- predict(reg_line, df)
+# Plot the data and the predictions
 ggplot(data = df, aes(x = date, y = CO2)) +
     geom_point(size = 0.5) +
     geom_line(aes(x = date, y = prediction_line), colour = "blue")
 ```
+
+We can see that even if the $R^2$ value in the summary was close to 1, a line does not seems to be a good fit for this data.
+
+Indeed:
+
+* it is underestimating from year 1958 to 1970
+ 
+* it is overestimating from yaer 1970 to 2005
+
+* it is underestimating from year 2005 to the present days
+
 ## Quadratic Regression
+
+As we saw previously, a line is not a good fit to model the data.
+
+Let us try with a polynom of degree 2: $CO2(day) = a \times day^2 + b \times day + c$.
+
+We can use the function ``poly`` to quickly generate of polynom.
 
 ```{r}
 reg_quad <- lm(data = df, CO2 ~ poly(day, 2))
 summary(reg_quad)
 ```
+
+We can now plot the data and the predictions:
 
 ```{r}
 df$prediction_quad <- predict(reg_quad, df)
@@ -91,17 +116,25 @@ ggplot(data = df, aes(x = date, y = CO2)) +
     geom_line(aes(x = date, y = prediction_quad),colour = "blue")
 ```
 
+The quadratic model fits way more the data.
+
+## CO2 Prediction for 2025
+
 An estimation in 2025:
 
 ```{r}
+# January, 1st 2025
 date_2025 <- as.Date("2025-01-01")
 day_2025 <- as.integer(date_2025 - date_first_measure)
 
+# Current date
 date_today <- Sys.Date()
 day_today <- as.integer(date_today - date_first_measure)
 
+# Creating points to estimate
 data_prediction <- data.frame(day = seq(day_today, day_2025, 7))
 data_prediction$date <- as.Date(date_first_measure + data_prediction$day)
+# Predicting the CO2 Concentration
 data_prediction$CO2 <- predict(reg_quad, data_prediction)
 
 ggplot() +
@@ -109,37 +142,31 @@ ggplot() +
     geom_line(data = data_prediction, aes(x = date, y = CO2), color = "red")
 ```
 
-```{r}
-yearly_data <- function(data, year) {
-    new_df <- df[as.integer(format(df$date, "%Y")) == year,]
-    new_df$day <- new_df$date - as.Date(paste(year,"01","01", sep = "-"))
-    new_df
-}
+We can say that if the CO2 concentration in the air continues to follow this quadratic grow, the concentration of CO2 in the air in 2025 will be around 425 ppm.
 
-ggplot() +
-    geom_smooth(data = yearly_data(df, 1960),aes(x = day, y = CO2), color = "green") +
-    geom_smooth(data = yearly_data(df, 1997),aes(x = day, y = CO2), color = "blue") +
-    geom_smooth(data = yearly_data(df, 2019),aes(x = day, y = CO2), color = "red")
-```
+# Yearly Evolution
+
+We will add a column in our data frame to indicate the which day of the year this is January 1st being day 0 and December 31st being 365.
+This will help us compare each year.
 
 ```{r}
-yearly_data_derivation <- function(data, year) {
-    new_df <- df[as.integer(format(df$date, "%Y")) == year,]
-    new_df$day <- as.integer(new_df$date - as.Date(paste(year,"01","01", sep = "-")))
-    new_df$CO2 <- new_df$CO2 - new_df$CO2[1]
-    new_df$year <- year
-    new_df
-}
-
 df$year <- as.integer(format(df$date, "%Y"))
 df$day_of_year <- as.integer(df$date - as.Date(paste(df$year, "01", "01", sep = "-")))
-for (y in df$year) {
-  year_CO2 <- subset(df, year == y, select = CO2)
-  tmp <- df[df$year == y,]
-  df[df$year == y,]$CO2_year <- df[df$year == y,]$CO2 - tmp$CO2[1]
-}
-
 ```
+
+We also want to look at the variations of CO2 in the year during the year.
+So we will substract the value of the first measure of the year for every measure of this year.
+
+```{r}
+df$CO2_year <- 0
+for (y in df$year) {
+  first_CO2_value_of_the_year <- df[df$year == y,]$CO2[1]
+  df[df$year == y,]$CO2_year <- df[df$year == y,]$CO2 - first_CO2_value_of_the_year
+}
+```
+
+
+We can plot the yearly evolution of some years:
 ```{r}
 ggplot() +
     geom_line(data = df[df$year == 1960,],aes(x = day_of_year, y = CO2_year), color = "green") +
@@ -151,19 +178,12 @@ ggplot() +
 
 ```{r}
 degree <- 5
-derivative_data <- yearly_data_derivation(df, 1960)
-for (y in 1961:2019) {
-    derivative_data <- rbind(derivative_data, yearly_data_derivation(df, y))
-}
 reg_poly <- lm(data = df, CO2_year ~ poly(day_of_year, degree) + poly(year, 2))
 summary(reg_poly)
 
 ```
 
 ```{r}
-data2019 <- yearly_data_derivation(df, 2019)
-data2019$prediction <- predict(reg_poly, df[df$year == 2019,])
-
 df$prediction_poly <- predict(reg_poly, df)
 
 ggplot(data = df[df$year == 2019,]) +
@@ -181,21 +201,22 @@ ggplot(data = df[df$year == 2019,]) +
 
 ## Trying with a sin
 
+Let us try to fit a sinusoidal curve for the oscilations over one year.
+We decide to add a polynomial expression to represent the global evolution over the year.
 ```{r}
-reg_sin <- lm(data = derivative_data, CO2_year ~ sin(2*pi/366*day_of_year) + cos(2*pi/366*day_of_year) + poly(day_of_year, 2))
+reg_sin <- lm(data = df, CO2_year ~ sin(2 * pi * day_of_year / 366) +
+                                    cos(2 * pi * day_of_year / 366) +
+                                    poly(day_of_year, 2) +
+                                    poly(year, 2))
 summary(reg_sin)
+```
+
+```{r}
 
 df$prediction_sin <- predict(reg_sin, df)
 
-ggplot(data = df[df$year == 2019,]) +
+ggplot(data = df[df$year == 1997,]) +
     geom_point(aes(x = day_of_year, y = CO2_year)) +
     geom_line(aes(x = day_of_year, y = prediction_sin))
-
-# data1997 <- yearly_data_derivation(df, 1997)
-# data1997$prediction <- predict(reg_poly, data1997)
-# 
-# ggplot(data = data1997) +
-#     geom_point(aes(x = day, y = CO2)) +
-#     geom_line(aes(x = day, y = prediction))
 
 ```
