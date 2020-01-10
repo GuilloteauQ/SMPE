@@ -1,54 +1,107 @@
 ---
-title: "SMPE"
+title: "SMPE: CO2 Concentration"
 author: "Quentin Guilloteau"
 output:
-  html_document: default
+  html_document:
+    number_sections: true
+    df_print: paged
+    highlight: tango
+    theme: cerulean
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: no
   pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
-library(ggplot2)
-library(dplyr)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-1. Réalisez un graphique qui vous montrera une oscillation périodique superposée à une évolution systématique plus lente.
+# Objectives
 
-2. Séparez ces deux phénomènes. Caractérisez l'oscillation périodique. Proposez un modèle simple de la contribution lente, estimez ses paramètres et tentez une extrapolation jusqu'à 2025 (dans le but de pouvoir valider le modèle par des observations futures).
+There are two main objectives for this work:
+
+1. Generate a graph showing a periodical oscillation superposed with a slower global evolution of the CO2
+
+2. Caracterize the oscillation and propose a model of the global trend. We will also give an estimation of the CO2 concentration. 
+
+# Importing the necessary Libraries
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
 
 # Downloading the data
 
+We first need to download the weekly measures from the [Scripps CO2 Program Website](https://scrippsco2.ucsd.edu):
 ```{r}
 # Downloading the data
 csv_url <- "https://scrippsco2.ucsd.edu/assets/data/atmospheric/stations/in_situ_co2/weekly/weekly_in_situ_co2_mlo.csv"
 df <- read.csv(csv_url, sep = ",", comment.char = "\"", blank.lines.skip=TRUE, strip.white=TRUE, skip=44, header=FALSE)
+```
 
+We are skipping 44 lines because the ``csv`` file contains a header of 44 lines of comments.
+
+```{r}
+head(df)
+```
+
+The columns in the file are not named, so we call them ``date`` and ``CO2``:
+```{r}
 # Naming the columns
 colnames(df) <- c("date", "CO2")
+```
 
+Let us take a quick look at the data and see the type of each column:
+```{r}
 # A quick look at the data
 head(df)
 sapply(df, typeof)
-
-# Checking if there are NAs in the data
-na_lines <- apply(df, 1, function(x) any(is.na(x)))
-df[na_lines,]
 ```
-# Managing the dates
 
-As the ``date`` column is considered as ``integer``, we will convert it into a date.
+We see that the type of the column ``date`` is not ``Date`` but ``r typeof(df$date)``.
+
+We will thus convert it to a type ``Date``.
 
 ```{r}
 df$date <- as.Date(df$date)
 sapply(df, class)
 ```
 
-# Plotting some stuff
-
-We can now plot the CO2 evolution in ppm from 1958:
+We will now check that there is no ``NA`` values in the data set.
 ```{r}
-ggplot(data = df, aes(x = date, y = CO2)) +
-    geom_point(size = 0.1)
+# Checking if there are NAs in the data
+na_lines <- apply(df, 1, function(x) any(is.na(x)))
+number_of_na_lines <- nrow(df[na_lines,])
+number_of_na_lines
+```
+There are ``r number_of_na_lines`` ``NA`` in the dataset.
+
+Let us remove the potential lines containing ``NA``:
+```{r}
+df <- df %>% drop_na()
+```
+
+# Discovering the Dataset
+
+Let us discover the dataset and simply plot the evolution of the CO2 concentration from 1958 to present days:
+```{r}
+p <- ggplot(data = df, aes(x = date, y = CO2)) +
+        theme_linedraw() +
+        geom_point(size = 0.1) +
+        xlab("Date") + ylab("CO2 Concentation (in ppm)") +
+        ggtitle("Evolution of the CO2 Concentration from 1958 to present days")
+p
+```
+
+The previous graph is zoomed in the data, but let us take a step back and look with the ``y`` axis starting at 0:
+
+
+```{r}
+p + expand_limits(y = 0)
 ```
 
 We can see that there seems to be a periodical oscillation but also the global trend is increasing.
@@ -61,6 +114,7 @@ Instead of using pure dates, we will convert each date into the number of days s
 ```{r}
 date_first_measure <- df$date[1]
 df$day <- as.integer(df$date - date_first_measure)
+head(df)
 ```
 
 ## Linear Regression
@@ -87,21 +141,26 @@ ggplot(data = df, aes(x = date, y = CO2)) +
     ggtitle("CO2 Variations and its Linear Estimation")
 ```
 
-We can see that even if the $R^2$ value in the summary was close to 1, a line does not seems to be a good fit for this data.
+We can see that even if the $R^2$ value in the summary was close to 1, a line does not seem to be a good fit for this data.
 
-Indeed:
+Indeed, this model...
 
-* it is underestimating from year 1958 to 1970
+* ... is underestimating from year 1958 to 1970
 
-* it is overestimating from yaer 1970 to 2005
+* ... is overestimating from yaer 1970 to 2005
 
-* it is underestimating from year 2005 to the present days
+* ... is underestimating from year 2005 to the present days
 
 ## Quadratic Regression
 
 As we saw previously, a line is not a good fit to model the data.
 
-Let us try with a polynom of degree 2: $CO2(day) = a \times day^2 + b \times day + c$.
+Let us try with a polynom of degree 2:
+$$
+CO2(day) = a \times day^2 + b \times day + c
+$$
+
+A polynom of degree 2 seems adapted to this situation because the evolution of the CO2 concentration looks slighlty quadratic.
 
 We can use the function ``poly`` to quickly generate of polynom.
 
@@ -118,7 +177,6 @@ ggplot(data = df, aes(x = date, y = CO2)) +
     theme_linedraw() +
     geom_point(size = 0.1) +
     geom_line(aes(x = date, y = prediction_quad), colour = "blue") +
-    # scale_y_continuous(limits = c(0, 450)) +
     xlab("Date") + ylab("CO2 (in ppm)") +
     ggtitle("CO2 Variations and its Quadratic Estimation")
 ```
@@ -127,7 +185,9 @@ The quadratic model fits way more the data.
 
 ## CO2 Prediction for 2025
 
-An estimation in 2025:
+As our regression takes the number of days from ``r date_first_measure``, we have to substract this date to have a valid entry.
+
+We will do a prediction of the CO2 concentration evolution from the current date to the January 1st 2025.
 
 ```{r}
 # January, 1st 2025
@@ -137,7 +197,9 @@ day_2025 <- as.integer(date_2025 - date_first_measure)
 # Current date
 date_today <- Sys.Date()
 day_today <- as.integer(date_today - date_first_measure)
+```
 
+```{r}
 # Creating points to estimate
 data_prediction <- data.frame(day = seq(day_today, day_2025, 7))
 data_prediction$date <- as.Date(date_first_measure + data_prediction$day)
@@ -148,7 +210,6 @@ ggplot() +
     theme_linedraw() +
     geom_point(data = df, aes(x = date, y = CO2), size = 0.1) +
     geom_line(data = data_prediction, aes(x = date, y = CO2), color = "red") + 
-    scale_y_continuous(limits = c(0, 450)) +
     xlab("Date") + ylab("CO2 (in ppm)") +
     ggtitle("CO2 Variations to the Present Day and its Estimation until 2025")
 ```
@@ -170,12 +231,23 @@ So we will substract the value of the first measure of the year for every measur
 
 ```{r}
 df$CO2_year <- 0
+df$percentage_increase_year <- 0
 for (y in df$year) {
   first_CO2_value_of_the_year <- df[df$year == y,]$CO2[1]
   df[df$year == y,]$CO2_year <- df[df$year == y,]$CO2 - first_CO2_value_of_the_year
+  df[df$year == y,]$percentage_increase_year <- df[df$year == y,]$CO2 * 100 / first_CO2_value_of_the_year - 100
 }
 ```
 
+```{r}
+ggplot(data = subset(df, year == 1960 | year == 1997 | year == 2019), 
+       aes(x = day_of_year, y = percentage_increase_year, color = factor(year))) +
+    theme_linedraw() +
+    geom_line() +
+    scale_y_continuous(limits = c(-2, 2)) +
+    xlab("Day of the Year") + ylab("Percentage of CO2 Concentration increase") +
+    ggtitle("CO2 Evolution for the Years 1960, 1997 and 2019")
+```
 
 We can plot the yearly evolution of some years:
 ```{r}
@@ -190,30 +262,16 @@ ggplot(data = subset(df, year == 1960 | year == 1997 | year == 2019),
 
 # Regression for a yearly trend
 
-```{r}
-degree <- 5
-reg_poly <- lm(data = df, CO2_year ~ poly(day_of_year, degree) + poly(year, 2))
-summary(reg_poly)
-```
-
-```{r}
-df$prediction_poly <- predict(reg_poly, df)
-
-ggplot(data = df[df$year == 2019,]) +
-    theme_linedraw() +
-    geom_point(aes(x = day_of_year, y = CO2_year)) +
-    geom_line(aes(x = day_of_year, y = prediction_poly)) +
-    scale_y_continuous(limits = c(-5, 5)) +
-    xlab("Days of the Year") + ylab("CO2 Variation (in ppm)") +
-    ggtitle("CO2 Variations and its Polynimial Prediction for the Year 1997 (in ppm)")
-```
-
-## Trying with a sin
+## Sinusoidal Regression
 
 Let us try to fit a sinusoidal curve for the oscilations over one year.
 We decide to add a polynomial expression to represent the global evolution over the year.
+
+As we saw previously, the global trend of the CO2 concentration over the year is quadratic on the year.
+We thus add a polynomial term of degree 2 to represent this evolution.
+
 ```{r}
-reg_sin <- lm(data = df, CO2_year ~ sin(2 * pi * day_of_year / 366) +
+reg_sin <- lm(data = df, percentage_increase_year ~ sin(2 * pi * day_of_year / 366) +
                                     cos(2 * pi * day_of_year / 366) +
                                     poly(day_of_year, 2) +
                                     poly(year, 2))
@@ -226,9 +284,36 @@ df$prediction_sin <- predict(reg_sin, df)
 
 ggplot(data = df[df$year == 1997,]) +
     theme_linedraw() +
-    geom_point(aes(x = day_of_year, y = CO2_year)) +
+    geom_point(aes(x = day_of_year, y = percentage_increase_year)) +
     geom_line(aes(x = day_of_year, y = prediction_sin)) +
-    scale_y_continuous(limits = c(-5, 5)) +
+    scale_y_continuous(limits = c(-2, 2)) +
     xlab("Days of the Year") + ylab("CO2 Variation (in ppm)") +
     ggtitle("CO2 Variations and its Sin Prediction for the Year 1997 (in ppm)")
+```
+
+## Polynomial Regression
+
+Let us try with a polynomial regression to see if we can get a better model.
+
+We have to chose a degree greater than 2 to get such an oscillation.
+We decided to use a polynom of degree 5.
+
+Once again we add a polynom of degree 2 to represent the global quadratic evolution of the CO2 concentration.
+
+```{r}
+degree <- 5
+reg_poly <- lm(data = df, percentage_increase_year ~ poly(day_of_year, degree) + poly(year, 2))
+summary(reg_poly)
+```
+
+```{r}
+df$prediction_poly <- predict(reg_poly, df)
+
+ggplot(data = df[df$year == 2019,]) +
+    theme_linedraw() +
+    geom_point(aes(x = day_of_year, y = percentage_increase_year)) +
+    geom_line(aes(x = day_of_year, y = prediction_poly)) +
+    scale_y_continuous(limits = c(-2, 2)) +
+    xlab("Days of the Year") + ylab("CO2 Variation (in ppm)") +
+    ggtitle("CO2 Variations and its Polynimial Prediction for the Year 1997 (in ppm)")
 ```
