@@ -239,32 +239,24 @@ for (y in df$year) {
 }
 ```
 
+We can plot the yearly evolution of some years:
+
 ```{r}
 ggplot(data = subset(df, year == 1960 | year == 1997 | year == 2019), 
        aes(x = day_of_year, y = percentage_increase_year, color = factor(year))) +
     theme_linedraw() +
     geom_line() +
     scale_y_continuous(limits = c(-2, 2)) +
-    xlab("Day of the Year") + ylab("Percentage of CO2 Concentration increase") +
+    xlab("Day of the Year") + ylab("Percentage of CO2 Concentration increase") + labs(color = "Year") +
     ggtitle("CO2 Evolution for the Years 1960, 1997 and 2019")
 ```
 
-We can plot the yearly evolution of some years:
-```{r}
-ggplot(data = subset(df, year == 1960 | year == 1997 | year == 2019), 
-       aes(x = day_of_year, y = CO2_year, color = factor(year))) +
-    theme_linedraw() +
-    geom_line() +
-    scale_y_continuous(limits = c(-5, 5)) +
-    xlab("Day of the Year") + ylab("CO2 Variation (in ppm)") +
-    ggtitle("CO2 Variations for the Years 1960, 1997 and 2019")
-```
+We see that the concentration of CO2 is oscillating during the year with a maximal value reached around day 150 (month of May) and a minimal value around day 260 (month of September).
 
-# Regression for a yearly trend
 
 ## Sinusoidal Regression
 
-Let us try to fit a sinusoidal curve for the oscilations over one year.
+Let us try to fit a sinusoidal curve for the oscillations over one year.
 We decide to add a polynomial expression to represent the global evolution over the year.
 
 As we saw previously, the global trend of the CO2 concentration over the year is quadratic on the year.
@@ -317,3 +309,10 @@ ggplot(data = df[df$year == 2019,]) +
     xlab("Days of the Year") + ylab("CO2 Variation (in ppm)") +
     ggtitle("CO2 Variations and its Polynimial Prediction for the Year 1997 (in ppm)")
 ```
+
+# Conclusion
+
+We showed that the global evolution of the CO2 concentration was increasing overtime.
+We also showed that there was a periodical oscillation during a time span of one year.
+
+You can find the source code here [https://github.com/GuilloteauQ/SMPE](https://github.com/GuilloteauQ/SMPE).
